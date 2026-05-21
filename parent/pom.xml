@@ -32,7 +32,7 @@
 
     <groupId>org.richfaces.ui</groupId>
     <artifactId>richfaces-ui-parent</artifactId>
-    <version>4.2.2.Final</version>
+    <version>4.2.2-bravura-8</version>
     <name>RichFaces UI Components Parent</name>
     <packaging>pom</packaging>
 
