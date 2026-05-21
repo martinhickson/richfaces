@@ -77,6 +77,9 @@ jobs:
         echo "Sample module parent ref (common-api):"
         sed -n '/<artifactId>richfaces-ui-parent<\/artifactId>/,/<\/parent>/p' common/api/pom.xml | grep "<version>"
         echo ""
+        echo "Sample aggregator parent ref (misc):"
+        sed -n '/<artifactId>richfaces-ui-parent<\/artifactId>/,/<\/parent>/p' misc/pom.xml | grep "<version>"
+        echo ""
         echo "CDK plugin (bootstrap, not bumped on release):"
         sed -n '/<artifactId>maven-cdk-plugin<\/artifactId>/,/<\/plugin>/p' parent/pom.xml | grep "<version>"
         echo ""
@@ -84,6 +87,7 @@ jobs:
         grep -E "version.cdk>|version.cdk.annotations>" parent/pom.xml
         test "$(grep -A1 '<artifactId>richfaces-ui-parent</artifactId>' parent/pom.xml | grep '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/')" = "${RELEASE_VERSION}"
         test "$(sed -n '/<artifactId>richfaces-ui-parent<\/artifactId>/,/<\/parent>/p' common/api/pom.xml | grep '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/')" = "${RELEASE_VERSION}"
+        test "$(sed -n '/<artifactId>richfaces-ui-parent<\/artifactId>/,/<\/parent>/p' misc/pom.xml | grep '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/')" = "${RELEASE_VERSION}"
         echo -e "\033[1;32m✓\033[0m \033[32mVersion alignment verified\033[0m"
       env:
         RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
