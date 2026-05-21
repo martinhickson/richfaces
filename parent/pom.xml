@@ -32,12 +32,12 @@
 
     <groupId>org.richfaces.ui</groupId>
     <artifactId>richfaces-ui-parent</artifactId>
-    <version>4.2.2.Final</version>
+    <version>4.2.2-bravura-5</version>
     <name>RichFaces UI Components Parent</name>
     <packaging>pom</packaging>
 
     <properties>
-        <version.cdk>4.2.2-bravura-2</version.cdk>
+        <version.cdk>4.2.2-bravura-5</version.cdk>
         <!-- Upstream BOM stays at 4.2.2.Final even when this POM is released at a Bravura version -->
         <version.richfaces.bom>4.2.2.Final</version.richfaces.bom>
     </properties>
@@ -65,7 +65,7 @@
                 <plugin>
                     <groupId>org.richfaces.cdk</groupId>
                     <artifactId>maven-cdk-plugin</artifactId>
-                    <version>${version.cdk}</version>
+                    <version>4.2.2-bravura-5</version>
                     <executions>
                         <execution>
                             <id>cdk-generate-sources</id>
