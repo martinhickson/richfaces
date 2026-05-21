@@ -1,0 +1,267 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    branches:
+      - 4.2.2-maintenance
+    inputs:
+      release_version:
+        description: 'Release version (e.g., 4.2.2-bravura-3)'
+        required: true
+        default: '4.2.2-bravura-2'
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      MAVEN_OPTS: -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+      JAVA_TOOL_OPTIONS: -Xmx2048m
+      RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+      BRANCH_NAME: v${{ github.event.inputs.release_version }}
+      TAG_NAME: v${{ github.event.inputs.release_version }}-release
+      JBOSS_PUBLIC_REPO: https://repository.jboss.org/nexus/content/groups/public
+      EXTRA_REPO_CDK: https://maven.pkg.github.com/martinhickson/richfaces-cdk
+      EXTRA_REPO_EL: https://maven.pkg.github.com/martinhickson/jboss-el
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+    - name: Create release branch
+      run: |
+        git checkout -b "${{ env.BRANCH_NAME }}"
+        echo "Created branch: ${{ env.BRANCH_NAME }}"
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Update versions in all POM files
+      run: |
+        mvn versions:set -DnewVersion="${RELEASE_VERSION}" -DprocessAllModules -DgenerateBackupPoms=false
+        echo "Version update completed"
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+
+    - name: Pin Bravura CDK plugin version
+      run: |
+        sed -i "s|<version.cdk>.*</version.cdk>|<version.cdk>${RELEASE_VERSION}</version.cdk>|" parent/pom.xml
+        if grep -A1 '<artifactId>maven-cdk-plugin</artifactId>' parent/pom.xml | grep -q '<version>'; then
+          sed -i "/<artifactId>maven-cdk-plugin<\\/artifactId>/{n;s|<version>.*</version>|<version>${RELEASE_VERSION}</version>|;}" parent/pom.xml
+        else
+          sed -i "/<artifactId>maven-cdk-plugin<\\/artifactId>/a\\                    <version>\${version.cdk}</version>" parent/pom.xml
+        fi
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+
+    - name: Verify version updates
+      run: |
+        echo "UI aggregator:"
+        grep -A1 "<artifactId>richfaces-ui-aggregator</artifactId>" pom.xml | grep "<version>"
+        echo ""
+        echo "UI parent:"
+        sed -n '/<artifactId>richfaces-ui-parent<\/artifactId>/,/<\/parent>/p' parent/pom.xml | grep "<version>" | head -3
+        echo ""
+        echo "CDK plugin:"
+        sed -n '/<artifactId>maven-cdk-plugin<\/artifactId>/,/<\/plugin>/p' parent/pom.xml | grep "<version>"
+        echo ""
+        echo "version.cdk property:"
+        grep "<version.cdk>" parent/pom.xml
+
+    - name: Commit and push version changes
+      run: |
+        git add -A
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Release version ${RELEASE_VERSION}"
+          git push origin "${BRANCH_NAME}"
+        fi
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+        restore-keys: ${{ runner.os }}-m2
+
+    - name: Configure Maven settings
+      run: |
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml << EOF
+        <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+                                      http://maven.apache.org/xsd/settings-1.0.0.xsd">
+          <servers>
+            <server>
+              <id>github-packages</id>
+              <username>${{ github.actor }}</username>
+              <password>${{ secrets.GITHUB_TOKEN }}</password>
+            </server>
+            <server>
+              <id>github-packages-cdk</id>
+              <username>${{ github.actor }}</username>
+              <password>${{ secrets.GITHUB_TOKEN }}</password>
+            </server>
+            <server>
+              <id>github-packages-el</id>
+              <username>${{ github.actor }}</username>
+              <password>${{ secrets.GITHUB_TOKEN }}</password>
+            </server>
+          </servers>
+          <profiles>
+            <profile>
+              <id>ci-extra-repositories</id>
+              <repositories>
+                <repository>
+                  <id>jboss-public</id>
+                  <name>JBoss Public Repository Group</name>
+                  <url>${JBOSS_PUBLIC_REPO}</url>
+                  <releases>
+                    <enabled>true</enabled>
+                  </releases>
+                  <snapshots>
+                    <enabled>false</enabled>
+                  </snapshots>
+                </repository>
+              </repositories>
+              <pluginRepositories>
+                <pluginRepository>
+                  <id>jboss-public</id>
+                  <name>JBoss Public Repository Group</name>
+                  <url>${JBOSS_PUBLIC_REPO}</url>
+                  <releases>
+                    <enabled>true</enabled>
+                  </releases>
+                  <snapshots>
+                    <enabled>false</enabled>
+                  </snapshots>
+                </pluginRepository>
+              </pluginRepositories>
+            </profile>
+            <profile>
+              <id>bravura-extra-repos</id>
+              <repositories>
+                <repository>
+                  <id>github-packages-cdk</id>
+                  <name>Bravura RichFaces CDK (GitHub Packages)</name>
+                  <url>${EXTRA_REPO_CDK}</url>
+                  <releases>
+                    <enabled>true</enabled>
+                  </releases>
+                  <snapshots>
+                    <enabled>true</enabled>
+                  </snapshots>
+                </repository>
+                <repository>
+                  <id>github-packages-el</id>
+                  <name>Bravura JBoss EL (GitHub Packages)</name>
+                  <url>${EXTRA_REPO_EL}</url>
+                  <releases>
+                    <enabled>true</enabled>
+                  </releases>
+                  <snapshots>
+                    <enabled>true</enabled>
+                  </snapshots>
+                </repository>
+              </repositories>
+              <pluginRepositories>
+                <pluginRepository>
+                  <id>github-packages-cdk</id>
+                  <name>Bravura RichFaces CDK (GitHub Packages)</name>
+                  <url>${EXTRA_REPO_CDK}</url>
+                  <releases>
+                    <enabled>true</enabled>
+                  </releases>
+                  <snapshots>
+                    <enabled>true</enabled>
+                  </snapshots>
+                </pluginRepository>
+              </pluginRepositories>
+            </profile>
+          </profiles>
+          <activeProfiles>
+            <activeProfile>ci-extra-repositories</activeProfile>
+          </activeProfiles>
+        </settings>
+        EOF
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Install parent POM
+      run: mvn install -f parent/pom.xml -N -ntp -Pbravura-extra-repos
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build all modules
+      run: mvn clean install -ntp -DskipTests -Pbravura-extra-repos
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create and push tag
+      run: |
+        git tag -a "${TAG_NAME}" -m "Release ${RELEASE_VERSION}"
+        git push origin "${TAG_NAME}"
+      env:
+        RELEASE_VERSION: ${{ env.RELEASE_VERSION }}
+        TAG_NAME: ${{ env.TAG_NAME }}
+
+    - name: Publish to GitHub Packages
+      run: |
+        mvn install -f parent/pom.xml -N -ntp -Pbravura-extra-repos
+        mvn deploy -ntp -DskipTests -Pbravura-extra-repos \
+          -DaltDeploymentRepository=github-packages::default::https://maven.pkg.github.com/${{ github.repository }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-artifacts-${{ github.event.inputs.release_version }}
+        path: |
+          **/target/*.jar
+          dist/target/*.zip
+        retention-days: 30
+        if-no-files-found: warn
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.TAG_NAME }}
+        name: Release ${{ env.RELEASE_VERSION }}
+        body: |
+          Release ${{ env.RELEASE_VERSION }}
+
+          All Maven artifacts published at version **${{ env.RELEASE_VERSION }}**.
+          Bravura CDK **${{ env.RELEASE_VERSION }}** consumed from GitHub Packages.
+          Upstream `richfaces-root-parent` remains **4.2.2.Final** from Maven Central.
+
+          - Release branch: ${{ env.BRANCH_NAME }}
+          - Tag: ${{ env.TAG_NAME }}
+          - Maintenance branch: 4.2.2-maintenance
+        draft: false
+        prerelease: false
+        files: |
+          dist/target/*.zip
+          core/**/target/*.jar
+          common/**/target/*.jar
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
