@@ -36,6 +36,7 @@
     <packaging>pom</packaging>
 
     <properties>
+        <version.cdk>4.2.2-bravura-2</version.cdk>
     </properties>
 
     <build>
@@ -44,6 +45,7 @@
                 <plugin>
                     <groupId>org.richfaces.cdk</groupId>
                     <artifactId>maven-cdk-plugin</artifactId>
+                    <version>${version.cdk}</version>
                     <executions>
                         <execution>
                             <id>cdk-generate-sources</id>
