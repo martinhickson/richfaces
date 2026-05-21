@@ -32,11 +32,40 @@
 
     <groupId>org.richfaces.ui</groupId>
     <artifactId>richfaces-ui-parent</artifactId>
+    <version>4.2.2.Final</version>
     <name>RichFaces UI Components Parent</name>
     <packaging>pom</packaging>
 
     <properties>
+        <!-- TODO: Bootstrap only — RichFaces and CDK releases are circular until Bravura CDK is published.
+             Use upstream CDK from JBoss Public; align version.cdk and version.cdk.annotations when CDK is available. -->
+        <version.cdk>4.2.2.Final</version.cdk>
+        <version.cdk.annotations>4.2.2.Final</version.cdk.annotations>
+        <!-- Upstream BOM stays at 4.2.2.Final even when this POM is released at a Bravura version -->
+        <version.richfaces.bom>4.2.2.Final</version.richfaces.bom>
+        <!-- jboss-parent:8 defaults to 1.6; JDK 17+ cannot compile that -->
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <maven.compiler.argument.source>1.8</maven.compiler.argument.source>
+        <maven.compiler.argument.target>1.8</maven.compiler.argument.target>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.richfaces</groupId>
+                <artifactId>richfaces-bom</artifactId>
+                <version>${version.richfaces.bom}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.richfaces.cdk</groupId>
+                <artifactId>annotations</artifactId>
+                <version>${version.cdk.annotations}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <pluginManagement>
@@ -44,6 +73,13 @@
                 <plugin>
                     <groupId>org.richfaces.cdk</groupId>
                     <artifactId>maven-cdk-plugin</artifactId>
+                    <version>${version.cdk}</version>
+                    <configuration>
+                        <jvmArgs>
+                            <jvmArg>--add-opens=java.base/java.lang=ALL-UNNAMED</jvmArg>
+                            <jvmArg>--add-opens=java.base/java.lang.reflect=ALL-UNNAMED</jvmArg>
+                        </jvmArgs>
+                    </configuration>
                     <executions>
                         <execution>
                             <id>cdk-generate-sources</id>
